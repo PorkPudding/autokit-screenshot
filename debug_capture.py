@@ -13,7 +13,6 @@ one diff_<slot>.png (red where pixels changed vs baseline).
 """
 import json
 import time
-from pathlib import Path
 
 import keyboard
 import mss
@@ -21,12 +20,12 @@ import numpy as np
 import pyautogui
 from PIL import Image
 
-from common import find_game_window, force_focus, grab_rgb, pick_monitor
+from common import app_dir, find_game_window, force_focus, grab_rgb, pick_monitor
 
 pyautogui.FAILSAFE = False
 
-CONFIG_PATH = Path(__file__).parent / "slots.json"
-DEBUG_DIR = Path(__file__).parent / "debug"
+CONFIG_PATH = app_dir() / "slots.json"
+DEBUG_DIR = app_dir() / "debug"
 
 WARMUP_DELAY = 1.0
 HOVER_DELAY = 0.9

@@ -15,7 +15,6 @@ import threading
 import time
 import traceback
 from datetime import datetime
-from pathlib import Path
 
 import keyboard
 import mss
@@ -24,15 +23,15 @@ import pyautogui
 from PIL import Image
 from scipy import ndimage
 
-from common import focus_game, grab_rgb, pick_monitor, window_rect
+from common import REFERENCE_H, app_dir, focus_game, grab_rgb, pick_monitor, window_rect
 
 # Failsafe off because the script itself drives the cursor to absolute
 # positions that may graze a screen corner. Captures are short, and
 # holding ESC aborts a capture between slots.
 pyautogui.FAILSAFE = False
 
-CONFIG_PATH = Path(__file__).parent / "slots.json"
-OUTPUT_DIR = Path(__file__).parent / "output"
+CONFIG_PATH = app_dir() / "slots.json"
+OUTPUT_DIR = app_dir() / "output"
 
 HOTKEY = "f8"
 QUIT_KEY = "esc"
@@ -57,6 +56,10 @@ HOVER_DELAY = 0.75       # seconds — let tooltip animate in
 FIRST_HOVER_BONUS = 0.4  # extra wait on first slot
 DIFF_THRESHOLD = 50      # per-pixel summed-channel diff to count as changed
                           # (higher = ignores tooltip shadow / faint UI shimmer)
+
+# Pixel-geometry constants below were tuned at 2560x1440 (REFERENCE_H) and
+# are scaled by monitor_height/REFERENCE_H at capture time: lengths/radii
+# scale linearly, areas quadratically.
 CURSOR_MASK_RADIUS = 35  # px around cursor positions to ignore in diff
 QUADRANT_MARGIN = 10     # tooltips anchor at the cursor and extend down-right;
                           # ignore diff pixels more than this far up/left of it
@@ -117,7 +120,7 @@ def _tight_bbox(component, frac=BBOX_TIGHTEN_FRAC):
     return int(cols.min()), int(rows.min()), int(cols.max()) + 1, int(rows.max()) + 1
 
 
-def find_tooltip_bbox(mask, slot_local):
+def find_tooltip_bbox(mask, slot_local, scale=1.0):
     """Return (x0, y0, x1, y1) of the tooltip, excluding the gear slot area.
 
     Steps:
@@ -127,20 +130,21 @@ def find_tooltip_bbox(mask, slot_local):
     3. Tighten the bbox by ignoring rows/columns that barely have any
        diff pixels (shadow bleed, faint edges).
     """
-    dilated = ndimage.binary_dilation(mask, iterations=DILATION_ITERS)
+    dilated = ndimage.binary_dilation(mask, iterations=max(1, round(DILATION_ITERS * scale)))
     labels, n = ndimage.label(dilated)
     if n == 0:
         return None
     sizes = ndimage.sum(dilated, labels, index=np.arange(1, n + 1))
     biggest = int(np.argmax(sizes)) + 1
-    if sizes[biggest - 1] < MIN_TOOLTIP_AREA:
+    if sizes[biggest - 1] < MIN_TOOLTIP_AREA * scale * scale:
         return None
 
     component = labels == biggest
     h, w = component.shape
     sx, sy = slot_local
     yy, xx = np.ogrid[:h, :w]
-    slot_zone = (xx - sx) ** 2 + (yy - sy) ** 2 <= SLOT_CLIP_RADIUS ** 2
+    clip_r = SLOT_CLIP_RADIUS * scale
+    slot_zone = (xx - sx) ** 2 + (yy - sy) ** 2 <= clip_r ** 2
     component = component & ~slot_zone
 
     return _tight_bbox(component)
@@ -169,7 +173,7 @@ def looks_like_tooltip(img_rgb):
     return 0.3 < ar < 2.5
 
 
-def capture_slot(sct, monitor, baseline, rest_local, slot_pos, hover_delay):
+def capture_slot(sct, monitor, baseline, rest_local, slot_pos, hover_delay, scale=1.0):
     pyautogui.moveTo(slot_pos[0], slot_pos[1])
     time.sleep(hover_delay)
     current = grab_rgb(sct, monitor)
@@ -180,15 +184,16 @@ def capture_slot(sct, monitor, baseline, rest_local, slot_pos, hover_delay):
     # Tooltips anchor at the cursor and extend down-right, so anything that
     # changed up/left of the hover point (slot highlight, gear icon, other
     # UI shimmer) is by definition not the tooltip.
-    qx = max(0, slot_local[0] - QUADRANT_MARGIN)
-    qy = max(0, slot_local[1] - QUADRANT_MARGIN)
+    qx = max(0, slot_local[0] - round(QUADRANT_MARGIN * scale))
+    qy = max(0, slot_local[1] - round(QUADRANT_MARGIN * scale))
     mask[:qy, :] = False
     mask[:, :qx] = False
 
-    punch_hole(mask, slot_local[0], slot_local[1], CURSOR_MASK_RADIUS)
-    punch_hole(mask, rest_local[0], rest_local[1], CURSOR_MASK_RADIUS)
+    cursor_r = round(CURSOR_MASK_RADIUS * scale)
+    punch_hole(mask, slot_local[0], slot_local[1], cursor_r)
+    punch_hole(mask, rest_local[0], rest_local[1], cursor_r)
 
-    bbox = find_tooltip_bbox(mask, slot_local)
+    bbox = find_tooltip_bbox(mask, slot_local, scale)
     if bbox is None:
         return None
     x0, y0, x1, y1 = bbox
@@ -274,13 +279,14 @@ def stitch_grid(images, cols=GRID_COLS, padding=12, bg=(18, 18, 20)):
     return canvas
 
 
-def stitch_vertical(top, bottom, needle_height=NEEDLE_HEIGHT):
+def stitch_vertical(top, bottom, scale=1.0):
     """Stitch two screenshots vertically using normalized cross-correlation.
 
     If the images are nearly identical, scrolling didn't move anything —
     return `top` alone. If no confident overlap is found, concatenate
     with a red separator so the user knows the middle is missing.
     """
+    needle_height = max(40, round(NEEDLE_HEIGHT * scale))
     h_top, w, _ = top.shape
     h_bot = bottom.shape[0]
 
@@ -331,7 +337,7 @@ def multi_click(x, y, times, interval=SCROLL_CLICK_INTERVAL):
         time.sleep(interval)
 
 
-def capture_stats(sct, monitor, stats_cfg, rest_global, debug_dir=None):
+def capture_stats(sct, monitor, stats_cfg, rest_global, debug_dir=None, scale=1.0):
     """Open details, capture top + bottom of stats list, close details, stitch."""
     db = stats_cfg["details_button"]
     st = stats_cfg["scroll_top"]
@@ -369,7 +375,7 @@ def capture_stats(sct, monitor, stats_cfg, rest_global, debug_dir=None):
         Image.fromarray(top_crop).save(debug_dir / "stats_top_raw.png")
         Image.fromarray(bot_crop).save(debug_dir / "stats_bottom_raw.png")
 
-    stitched, status = stitch_vertical(top_crop, bot_crop)
+    stitched, status = stitch_vertical(top_crop, bot_crop, scale)
     return Image.fromarray(stitched), status
 
 
@@ -442,13 +448,14 @@ def run_capture(config):
     by_slot = {}
     with mss.MSS() as sct:
         monitor = pick_monitor(sct, win)
+        ui_scale = monitor["height"] / REFERENCE_H
         rest_local = (rest[0] - monitor["left"], rest[1] - monitor["top"])
         baseline = grab_rgb(sct, monitor)
         for i, slot in enumerate(order):
             if keyboard.is_pressed(QUIT_KEY):
                 raise CaptureAborted
             delay = HOVER_DELAY + (FIRST_HOVER_BONUS if i == 0 else 0)
-            result = capture_slot(sct, monitor, baseline, rest_local, slots[slot], delay)
+            result = capture_slot(sct, monitor, baseline, rest_local, slots[slot], delay, ui_scale)
             if result is None:
                 log.append(f"  {slot:18s} -> SKIPPED (empty or no tooltip)")
                 by_slot[slot] = None
@@ -469,7 +476,9 @@ def run_capture(config):
         try:
             with mss.MSS() as sct:
                 monitor = pick_monitor(sct, win)
-                stats_img, status = capture_stats(sct, monitor, stats_cfg, rest, debug_dir=OUTPUT_DIR)
+                ui_scale = monitor["height"] / REFERENCE_H
+                stats_img, status = capture_stats(sct, monitor, stats_cfg, rest,
+                                                  debug_dir=OUTPUT_DIR, scale=ui_scale)
             log.append(f"  stats              -> {stats_img.width}x{stats_img.height} [{status}]")
         except Exception as e:
             log.append(f"  stats              -> FAILED: {e}")

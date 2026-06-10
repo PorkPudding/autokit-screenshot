@@ -9,10 +9,9 @@ everything to slots.json next to this script. If you only want to
 redo the stats portion, use calibrate_stats.py.
 """
 import json
-from pathlib import Path
 
 from calibration_overlay import CalibrationOverlay
-from common import find_game_window, window_rect
+from common import app_dir, find_game_window, window_rect
 
 SLOT_ORDER = [
     "helmet",
@@ -69,7 +68,7 @@ STATS_STEPS = [
     ),
 ]
 
-CONFIG_PATH = Path(__file__).parent / "slots.json"
+CONFIG_PATH = app_dir() / "slots.json"
 
 
 def build_steps():

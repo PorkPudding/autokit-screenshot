@@ -10,11 +10,11 @@ visible. A small always-on-top window walks you through the steps.
 Adds a `stats` section to slots.json without touching gear calibration.
 """
 import json
-from pathlib import Path
 
 from calibration_overlay import CalibrationOverlay
+from common import app_dir
 
-CONFIG_PATH = Path(__file__).parent / "slots.json"
+CONFIG_PATH = app_dir() / "slots.json"
 
 STEPS = [
     (

@@ -3,7 +3,27 @@
 Automated gear-and-stats screenshot tool for *Dark and Darker*. With your
 inventory open, press a hotkey and the tool hovers each gear slot, captures
 the tooltip that pops up, opens the details panel, scrolls through the full
-stats list, and stitches it all into a single PNG.
+stats list, and stitches it all into a single PNG (also copied to your
+clipboard, ready to paste into Discord).
+
+## For users (the exe)
+
+1. Launch Dark and Darker in **borderless windowed** mode and open your stash/inventory.
+2. Run `AutoKitScreenshot.exe`. On first run it auto-calibrates to your
+   resolution from a built-in profile — no setup needed on standard 16:9
+   displays.
+3. Press **F8** to capture. The result lands in `output\` next to the exe
+   and on your clipboard. Press **ESC** to quit.
+
+If captures look misaligned (unusual aspect ratio, UI mods), run
+`AutoKitScreenshot.exe --calibrate` for a guided manual calibration.
+Other flags: `--auto-calibrate` (redo the automatic setup, e.g. after
+changing resolution), `--calibrate-stats` (redo just the stats panel),
+`--check` (print environment status).
+
+Windows SmartScreen may warn on first run (unsigned exe) — choose
+"More info → Run anyway". If F8 does nothing, try running as Administrator
+(global hotkeys sometimes need it).
 
 Example output: a stats column on the left and a 4-wide grid of gear
 tooltips on the right (helmet, necklace, chest, cape, hands, legs, boots,
@@ -30,8 +50,10 @@ The `keyboard` package may require running Python as Administrator to register g
 
 | File | Purpose |
 |---|---|
+| `autokit.py` | Unified entry point (and the exe target): auto-calibrates on first run, then starts the capture listener. |
 | `capture.py` | Main capture loop. Press F8 to grab a kit screenshot. |
-| `common.py` | Shared screen/window helpers (screenshots, monitor picking, game-window focus). Not run directly. |
+| `reference_profile.py` | Built-in 2560x1440 calibration profile + auto-calibration that scales it to the user's game window (center-anchored, scaled by height/1440 — exact for 16:9). |
+| `common.py` | Shared screen/window helpers (screenshots, monitor picking, game-window focus, app paths). Not run directly. |
 | `calibrate.py` | Full calibration: records all 13 gear slot positions (9 armor/jewelry + both halves of both weapon sets) plus the stats panel and the game window's position. Writes `slots.json`. |
 | `calibrate_stats.py` | Re-calibrates just the stats panel section without touching gear positions. |
 | `calibration_overlay.py` | The always-on-top Tk window used by both calibrators. Not run directly. |
@@ -100,6 +122,19 @@ The `keyboard` package may require running Python as Administrator to register g
 **Stats stitching shows a red bar in the middle.** The two top/bottom captures didn't have a recognizable overlap — usually because the panel is too short to need stitching, or the scroll didn't take effect. Confirm `scroll_top` and `scroll_bottom` in `slots.json` actually land on the scroll arrows.
 
 **Stats shows just the top half with no error.** Means the stitcher detected the two screenshots are nearly identical — the list isn't long enough to scroll. That's fine.
+
+## Building the exe
+
+```
+pip install -r requirements.txt pyinstaller
+build.bat
+```
+
+Produces `dist\AutoKitScreenshot.exe` (single file, console app). The exe
+keeps `slots.json` and `output\` next to itself. Detection geometry
+(mask radii, blob sizes) auto-scales by `screen_height / 1440`, so the
+built-in profile plus scaling covers standard resolutions; the manual
+calibrator stays available as the escape hatch.
 
 ## Tuning knobs (in `capture.py`)
 

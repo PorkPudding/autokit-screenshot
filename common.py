@@ -1,12 +1,26 @@
 """
-Shared screen/window helpers for capture.py and debug_capture.py.
+Shared screen/window helpers and app paths.
 """
 import ctypes
+import sys
+from pathlib import Path
 
 import numpy as np
 import pygetwindow as gw
 
 GAME_TITLE_HINTS = ("dark and darker", "dungeoncrawler", "dungeon crawler")
+
+# Resolution the built-in profile and detection constants were tuned at.
+REFERENCE_W = 2560
+REFERENCE_H = 1440
+
+
+def app_dir():
+    """Directory for slots.json / output — next to the exe when frozen
+    (PyInstaller unpacks __file__ into a temp dir), else the source dir."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent
 
 
 def grab_rgb(sct, monitor):
