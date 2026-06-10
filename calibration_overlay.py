@@ -50,8 +50,15 @@ class CalibrationOverlay:
         self._await_release = True  # wait for SPACE to be up before arming
         self._last_recorded = None
 
-    def run(self):
-        self.root = tk.Tk()
+    def run(self, parent=None):
+        """Run the calibration sequence. Standalone (own Tk root +
+        mainloop) when parent is None; as a Toplevel of an existing GUI
+        otherwise — the caller's mainloop keeps running and we block via
+        wait_window."""
+        if parent is None:
+            self.root = tk.Tk()
+        else:
+            self.root = tk.Toplevel(parent)
         self.root.title(self.title)
         # Closing the window via the X button is an abort, not a success —
         # otherwise the caller would receive a partial results dict.
@@ -94,7 +101,10 @@ class CalibrationOverlay:
 
         self._refresh_step()
         self.root.after(POLL_MS, self._tick)
-        self.root.mainloop()
+        if parent is None:
+            self.root.mainloop()
+        else:
+            parent.wait_window(self.root)
         return None if self.aborted else self.results
 
     def _abort(self):
@@ -123,6 +133,14 @@ class CalibrationOverlay:
         self.desc_label.config(text=desc)
 
     def _tick(self):
+        # In embedded (Toplevel) mode the host mainloop keeps running, so a
+        # queued tick can fire after our window is gone — just stop.
+        try:
+            if not self.root.winfo_exists():
+                return
+        except tk.TclError:
+            return
+
         x, y = pyautogui.position()
         self.pos_label.config(text=f"cursor: ({x:>5}, {y:>5})")
 

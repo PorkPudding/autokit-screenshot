@@ -1,21 +1,30 @@
 """
 AutoKitScreenshot — unified entry point (and the PyInstaller exe target).
 
-Default behavior (double-click the exe / run with no args):
-  1. If slots.json doesn't exist, auto-calibrate from the built-in
-     profile (game must be running, borderless windowed).
-  2. Start the capture listener: F8 captures, ESC quits.
+Default behavior (double-click the exe / run with no args): open the GUI.
+It auto-calibrates on first run and provides Capture / calibration buttons;
+F8 works globally while it's open.
 
-Options:
+CLI options (for troubleshooting / power users; run from source for
+console output):
+  --cli              headless capture listener (the old console mode)
   --calibrate        full manual calibration (18 guided steps)
   --calibrate-stats  re-calibrate just the stats panel
   --auto-calibrate   regenerate slots.json from the built-in profile
   --check            verify environment and config, then exit
 """
 import argparse
+import io
 import sys
 
 from common import app_dir
+
+# In a windowed (no-console) exe, stdout/stderr may be missing; stray
+# print()s from library code must not crash the app.
+if sys.stdout is None:
+    sys.stdout = io.StringIO()
+if sys.stderr is None:
+    sys.stderr = io.StringIO()
 
 
 def pause_if_frozen():
@@ -23,7 +32,8 @@ def pause_if_frozen():
     if getattr(sys, "frozen", False):
         try:
             input("\nPress Enter to exit...")
-        except EOFError:
+        except Exception:
+            # No usable stdin (windowed build) — nothing to hold open.
             pass
 
 
@@ -52,6 +62,8 @@ def main():
         prog="AutoKitScreenshot",
         description="Capture Dark and Darker gear tooltips + stats into one image.",
     )
+    parser.add_argument("--cli", action="store_true",
+                        help="headless console capture listener (no GUI)")
     parser.add_argument("--calibrate", action="store_true",
                         help="full manual calibration (guided overlay)")
     parser.add_argument("--calibrate-stats", action="store_true",
@@ -84,22 +96,27 @@ def main():
         pause_if_frozen()
         return
 
-    # Default flow: ensure a config exists, then run the capture listener.
-    cfg_path = app_dir() / "slots.json"
-    if not cfg_path.exists():
-        print("No calibration found — auto-calibrating from the built-in profile.")
-        print("(Make sure Dark and Darker is running in borderless windowed mode.)\n")
-        from reference_profile import auto_calibrate
-        if not auto_calibrate():
-            print("\nAuto-calibration failed. Start the game and run this again, "
-                  "or run with --calibrate for manual setup.")
-            pause_if_frozen()
-            return
-        print()
+    if args.cli:
+        # Headless console mode: ensure a config exists, then listen for F8.
+        cfg_path = app_dir() / "slots.json"
+        if not cfg_path.exists():
+            print("No calibration found — auto-calibrating from the built-in profile.")
+            print("(Make sure Dark and Darker is running in borderless windowed mode.)\n")
+            from reference_profile import auto_calibrate
+            if not auto_calibrate():
+                print("\nAuto-calibration failed. Start the game and run this again, "
+                      "or run with --calibrate for manual setup.")
+                pause_if_frozen()
+                return
+            print()
+        import capture
+        capture.main()
+        pause_if_frozen()
+        return
 
-    import capture
-    capture.main()
-    pause_if_frozen()
+    # Default: the GUI.
+    import gui
+    gui.main()
 
 
 if __name__ == "__main__":

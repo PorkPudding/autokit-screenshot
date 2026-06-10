@@ -98,7 +98,10 @@ def build_steps():
     return steps
 
 
-def main():
+def run_calibration(parent=None, emit=print):
+    """Run the guided calibration and save slots.json. Returns True on
+    success, False on abort. `parent` embeds the overlay in an existing
+    Tk app instead of creating its own root."""
     steps = build_steps()
     overlay = CalibrationOverlay(
         title="D&D Full Calibration",
@@ -106,10 +109,10 @@ def main():
               "Follow the prompts: hover each target and press SPACE.",
         steps=steps,
     )
-    results = overlay.run()
+    results = overlay.run(parent=parent)
     if results is None:
-        print("Aborted.")
-        return
+        emit("Calibration aborted.")
+        return False
 
     existing = {}
     if CONFIG_PATH.exists():
@@ -122,6 +125,7 @@ def main():
     existing["slots"] = {k: results[k] for k in SLOT_ORDER}
     existing["order"] = SLOT_ORDER
     existing["stats"] = {key: results[key] for key, _ in STATS_STEPS}
+    existing.pop("auto_calibrated", None)
 
     # Record where the game window sits so capture.py can refuse to run
     # against a moved/resized window (the absolute coords would be wrong).
@@ -130,14 +134,17 @@ def main():
         existing["window"] = window_rect(win)
     else:
         existing["window"] = None
-        print("WARNING: couldn't find the game window — calibration saved without "
-              "a window-position record, so capture.py can't detect window moves.")
+        emit("WARNING: couldn't find the game window — calibration saved without "
+             "a window-position record, so window moves can't be detected.")
 
     CONFIG_PATH.write_text(json.dumps(existing, indent=2))
-    print(
-        f"Saved {len(SLOT_ORDER)} gear slots + rest + {len(STATS_STEPS)} stats points "
-        f"to {CONFIG_PATH.name}"
-    )
+    emit(f"Saved {len(SLOT_ORDER)} gear slots + rest + {len(STATS_STEPS)} stats points "
+         f"to {CONFIG_PATH.name}")
+    return True
+
+
+def main():
+    run_calibration()
 
 
 if __name__ == "__main__":

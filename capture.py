@@ -426,7 +426,12 @@ def check_window_unchanged(config, win):
             "or re-run calibrate.py.")
 
 
-def run_capture(config):
+def run_capture(config, emit=print):
+    """Run one full capture. Returns the output path, or None on abort.
+
+    `emit` receives human-readable progress lines (print for the CLI,
+    the log pane for the GUI).
+    """
     rest = config["rest"]
     order = config["order"]
     slots = config["slots"]
@@ -438,8 +443,8 @@ def run_capture(config):
 
     window_error = check_window_unchanged(config, win)
     if window_error:
-        print(f"\n[capture] ABORTED: {window_error}\n")
-        return
+        emit(f"[capture] ABORTED: {window_error}")
+        return None
 
     pyautogui.moveTo(rest[0], rest[1])
     time.sleep(0.5)
@@ -494,70 +499,72 @@ def run_capture(config):
         except Exception as e:
             log.append(f"  clipboard          -> FAILED: {e}")
 
-    print("\n[capture] Done.")
+    emit("[capture] Done.")
     if win is None:
-        print("  WARNING: couldn't find Dark and Darker window — guessed primary monitor.")
+        emit("  WARNING: couldn't find Dark and Darker window — guessed primary monitor.")
     else:
-        print(f"  Game window: '{win.title}'")
-    print(f"  Captured monitor: left={monitor['left']} top={monitor['top']} {monitor['width']}x{monitor['height']}")
+        emit(f"  Game window: '{win.title}'")
+    emit(f"  Captured monitor: left={monitor['left']} top={monitor['top']} {monitor['width']}x{monitor['height']}")
     for line in log:
-        print(line)
-    print(f"  Saved {out_path}\n")
+        emit(line)
+    emit(f"  Saved {out_path}")
+    return out_path
 
 
-def load_config():
+def load_config(emit=print):
     """Load and validate slots.json. Returns None (with a message) if unusable."""
     if not CONFIG_PATH.exists():
-        print(f"Missing {CONFIG_PATH.name}. Run calibrate.py first.")
+        emit(f"Missing {CONFIG_PATH.name}. Run a calibration first.")
         return None
     try:
         config = json.loads(CONFIG_PATH.read_text())
     except json.JSONDecodeError as e:
-        print(f"{CONFIG_PATH.name} is not valid JSON ({e}). Re-run calibrate.py.")
+        emit(f"{CONFIG_PATH.name} is not valid JSON ({e}). Re-calibrate.")
         return None
 
     missing_keys = [k for k in ("rest", "slots", "order") if k not in config]
     if missing_keys:
-        print(f"{CONFIG_PATH.name} is missing {missing_keys} — it's from an older "
-              "version or a partial run. Re-run calibrate.py.")
+        emit(f"{CONFIG_PATH.name} is missing {missing_keys} — it's from an older "
+             "version or a partial run. Re-calibrate.")
         return None
 
     missing_slots = [s for s in config["order"] if s not in config["slots"]]
     if missing_slots:
-        print(f"{CONFIG_PATH.name} has no position for {missing_slots}. Re-run calibrate.py.")
+        emit(f"{CONFIG_PATH.name} has no position for {missing_slots}. Re-calibrate.")
         return None
 
     if not any(s.startswith("weapon") for s in config["order"]):
-        print("NOTE: this calibration predates 4-weapon-slot support "
-              "(it has primary/secondary only). Capture still works; "
-              "re-run calibrate.py to record all four weapon positions.")
+        emit("NOTE: this calibration predates 4-weapon-slot support "
+             "(it has primary/secondary only). Capture still works; "
+             "re-calibrate to record all four weapon positions.")
 
     if "stats" not in config:
-        print("NOTE: no stats-panel calibration found — gear only. "
-              "Run calibrate.py (or calibrate_stats.py) to add it.")
+        emit("NOTE: no stats-panel calibration found — gear only. "
+             "Re-calibrate to add it.")
     return config
 
 
 _capture_lock = threading.Lock()
 
 
-def _on_hotkey(config):
-    """Hotkey callback: one capture at a time, tracebacks made visible.
+def trigger_capture(config, emit=print):
+    """Run one capture safely: one at a time, tracebacks made visible.
 
-    The keyboard library runs this on its own worker thread — without the
-    lock a second F8 press mid-capture would start a concurrent capture,
-    and without the try/except a crash would vanish silently.
+    Safe to call from any thread (the keyboard library's worker, a GUI
+    worker thread, ...). Returns the output path or None.
     """
     if not _capture_lock.acquire(blocking=False):
-        print("[capture] busy — ignored extra hotkey press")
-        return
+        emit("[capture] busy — ignored extra trigger")
+        return None
     try:
-        run_capture(config)
+        return run_capture(config, emit)
     except CaptureAborted:
-        print("\n[capture] aborted by ESC\n")
+        emit("[capture] aborted by ESC")
+        return None
     except Exception:
-        print("[capture] CRASHED:")
-        traceback.print_exc()
+        emit("[capture] CRASHED:")
+        emit(traceback.format_exc())
+        return None
     finally:
         _capture_lock.release()
 
@@ -571,7 +578,7 @@ def main():
     print(f"Press {HOTKEY.upper()} (any window) to capture — game will be auto-focused.")
     print(f"Press {QUIT_KEY.upper()} to quit.\n")
 
-    keyboard.add_hotkey(HOTKEY, lambda: _on_hotkey(config))
+    keyboard.add_hotkey(HOTKEY, lambda: trigger_capture(config))
     keyboard.wait(QUIT_KEY)
     print("Bye.")
 

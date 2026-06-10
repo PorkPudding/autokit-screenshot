@@ -8,22 +8,27 @@ clipboard, ready to paste into Discord).
 
 ## For users (the exe)
 
-1. Launch Dark and Darker in **borderless windowed** mode and open your stash/inventory.
-2. Run `AutoKitScreenshot.exe`. On first run it auto-calibrates to your
-   resolution from a built-in profile — no setup needed on standard 16:9
-   displays.
-3. Press **F8** to capture. The result lands in `output\` next to the exe
-   and on your clipboard. Press **ESC** to quit.
+1. Launch Dark and Darker in **borderless windowed** mode.
+2. Run `AutoKitScreenshot.exe` — a small window opens, finds your game,
+   and auto-calibrates itself on first run (no setup needed on standard
+   16:9 displays). The status panel tells you when it's ready.
+3. Open your stash/inventory in-game and press **F8** (or click the big
+   Capture button). A preview appears in the app; the image is saved to
+   `output\` next to the exe and copied to your clipboard — paste it
+   straight into Discord with Ctrl+V.
 
-If captures look misaligned (unusual aspect ratio, UI mods), run
-`AutoKitScreenshot.exe --calibrate` for a guided manual calibration.
-Other flags: `--auto-calibrate` (redo the automatic setup, e.g. after
-changing resolution), `--calibrate-stats` (redo just the stats panel),
-`--check` (print environment status).
+If captures look misaligned (unusual aspect ratio, UI mods), click
+**Manual Calibration** in the app for a step-by-step guided setup.
+After changing resolution or moving the game window, click
+**Auto-Calibrate** — the status panel will warn you when this is needed.
 
 Windows SmartScreen may warn on first run (unsigned exe) — choose
 "More info → Run anyway". If F8 does nothing, try running as Administrator
 (global hotkeys sometimes need it).
+
+CLI flags for power users (run from source for console output):
+`--cli` (headless console listener), `--calibrate`, `--calibrate-stats`,
+`--auto-calibrate`, `--check`.
 
 Example output: a stats column on the left and a 4-wide grid of gear
 tooltips on the right (helmet, necklace, chest, cape, hands, legs, boots,
@@ -50,8 +55,9 @@ The `keyboard` package may require running Python as Administrator to register g
 
 | File | Purpose |
 |---|---|
-| `autokit.py` | Unified entry point (and the exe target): auto-calibrates on first run, then starts the capture listener. |
-| `capture.py` | Main capture loop. Press F8 to grab a kit screenshot. |
+| `autokit.py` | Unified entry point (and the exe target): opens the GUI by default; CLI flags for headless/troubleshooting modes. |
+| `gui.py` | The main window: live status, Capture button, calibration buttons, activity log, last-capture preview. |
+| `capture.py` | Capture engine + headless F8 listener (`--cli`). |
 | `reference_profile.py` | Built-in 2560x1440 calibration profile + auto-calibration that scales it to the user's game window (center-anchored, scaled by height/1440 — exact for 16:9). |
 | `common.py` | Shared screen/window helpers (screenshots, monitor picking, game-window focus, app paths). Not run directly. |
 | `calibrate.py` | Full calibration: records all 13 gear slot positions (9 armor/jewelry + both halves of both weapon sets) plus the stats panel and the game window's position. Writes `slots.json`. |

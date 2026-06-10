@@ -73,35 +73,32 @@ def scale_profile(rect):
     }
 
 
-def auto_calibrate(verbose=True):
+def auto_calibrate(emit=print):
     """Find the game window, scale the built-in profile to it, and write
     slots.json. Returns True on success."""
     win = find_game_window()
     if win is None:
-        if verbose:
-            print("Couldn't find the Dark and Darker window. Launch the game "
-                  "(borderless windowed) and try again.")
+        emit("Couldn't find the Dark and Darker window. Launch the game "
+             "(borderless windowed) and try again.")
         return False
 
     rect = window_rect(win)
     left, top, w, h = rect
     if w <= 0 or h <= 0:
-        if verbose:
-            print(f"Game window reports an unusable size {w}x{h} — is it minimized?")
+        emit(f"Game window reports an unusable size {w}x{h} — is it minimized?")
         return False
 
     config = scale_profile(rect)
     out = app_dir() / "slots.json"
     out.write_text(json.dumps(config, indent=2))
 
-    if verbose:
-        scale = h / REFERENCE_H
-        print(f"Auto-calibrated for game window {w}x{h} at ({left}, {top}) "
-              f"(UI scale {scale:.3f}) -> {out}")
-        if abs(w / h - 16 / 9) > 0.01:
-            print("CAUTION: your aspect ratio is not 16:9. The built-in profile "
-                  "assumes the inventory UI stays centered; if captures land in "
-                  "the wrong places, run a manual calibration (--calibrate).")
-        print("Do a test capture and check the output. If tooltips are missed "
-              "or misaligned, run a manual calibration (--calibrate).")
+    scale = h / REFERENCE_H
+    emit(f"Auto-calibrated for game window {w}x{h} at ({left}, {top}) "
+         f"(UI scale {scale:.3f}) -> {out.name}")
+    if abs(w / h - 16 / 9) > 0.01:
+        emit("CAUTION: your aspect ratio is not 16:9. The built-in profile "
+             "assumes the inventory UI stays centered; if captures land in "
+             "the wrong places, run a manual calibration.")
+    emit("Do a test capture and check the output. If tooltips are missed "
+         "or misaligned, run a manual calibration.")
     return True
