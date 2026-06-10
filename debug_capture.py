@@ -67,6 +67,8 @@ def force_focus(win):
     try:
         hwnd = win._hWnd
     except AttributeError:
+        print("[debug] WARNING: window object has no _hWnd — cannot force focus. "
+              "Focus may fail; check 00_baseline.png shows the game.")
         return False
     user32 = ctypes.windll.user32
     SW_RESTORE = 9

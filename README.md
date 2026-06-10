@@ -7,7 +7,10 @@ stats list, and stitches it all into a single PNG.
 
 Example output: a stats column on the left and a 4-wide grid of gear
 tooltips on the right (helmet, necklace, chest, cape, hands, legs, boots,
-primary weapon, both rings, secondary weapon).
+both rings, and up to four weapons — each of the two weapon sets can hold
+either a two-handed weapon or a main + offhand pair, so both halves of each
+set are captured. When a two-hander fills a set, the duplicate tooltip is
+detected and dropped automatically).
 
 ## Requirements
 
@@ -21,8 +24,6 @@ Install Python dependencies:
 pip install -r requirements.txt
 ```
 
-> Note: `requirements.txt` is missing `pygetwindow`. Until that's fixed, also run `pip install pygetwindow`.
-
 The `keyboard` package may require running Python as Administrator to register global hotkeys.
 
 ## Files
@@ -30,7 +31,7 @@ The `keyboard` package may require running Python as Administrator to register g
 | File | Purpose |
 |---|---|
 | `capture.py` | Main capture loop. Press F8 to grab a kit screenshot. |
-| `calibrate.py` | Full calibration: records all 11 gear slot positions plus the stats panel. Writes `slots.json`. |
+| `calibrate.py` | Full calibration: records all 13 gear slot positions (9 armor/jewelry + both halves of both weapon sets) plus the stats panel. Writes `slots.json`. |
 | `calibrate_stats.py` | Re-calibrates just the stats panel section without touching gear positions. |
 | `calibration_overlay.py` | The always-on-top Tk window used by both calibrators. Not run directly. |
 | `debug_capture.py` | Diagnostic tool. Dumps raw screenshots + red diff masks per slot to `debug/`, with a stronger Win32 focus call. Use when capture is misbehaving. |
@@ -47,11 +48,12 @@ The `keyboard` package may require running Python as Administrator to register g
    - Move the cursor onto the slot, wait `HOVER_DELAY` for the tooltip to animate in.
    - Take another screenshot.
    - Diff against the baseline. Pixels that changed by more than `DIFF_THRESHOLD` are the tooltip (plus the slot's hover-highlight and the cursor itself).
+   - Zero out everything up/left of the cursor (minus a small `QUADRANT_MARGIN`): tooltips always anchor at the cursor and extend down-right, so the slot highlight and gear icon can't contaminate the result.
    - Punch a circular hole around the cursor's start and end positions to remove the cursor sprite from the mask.
    - Dilate, find the largest connected blob, then carve a circular slot-exclusion region out of it (so the hover highlight on the slot icon doesn't drag the bounding box back to the slot).
    - Take a density-based tight bbox — drop rows/cols that barely have any diff pixels (faint shadow bleed).
    - Reject the result if the cropped region looks like the character-preview model (too bright, too colorful) instead of a tooltip.
-3. After all slots, pack the surviving tooltips into a 4-column grid.
+3. After all slots, drop offhand captures that duplicate their set's main-hand capture (a two-handed weapon shows the same tooltip from both halves), then pack the surviving tooltips into a 4-column grid.
 
 **Stats panel** is captured by:
 

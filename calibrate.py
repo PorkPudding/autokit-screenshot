@@ -21,11 +21,25 @@ SLOT_ORDER = [
     "hands",
     "legs",
     "boots",
-    "primary_weapon",
     "ring_left",
     "ring_right",
-    "secondary_weapon",
+    "weapon1_main",
+    "weapon1_offhand",
+    "weapon2_main",
+    "weapon2_offhand",
 ]
+
+# Weapon sets hold either one two-handed weapon or two one-handers, so each
+# box needs a hover point in each half. The capture script automatically
+# drops the duplicate tooltip when a two-hander fills the whole box.
+SLOT_DESCRIPTIONS = {
+    "weapon1_main": "Hover the LEFT half of weapon set 1 (the left weapon box). "
+                    "If a two-handed weapon is equipped it fills the whole box — "
+                    "just aim at the left half.",
+    "weapon1_offhand": "Hover the RIGHT half of weapon set 1 (the left weapon box).",
+    "weapon2_main": "Hover the LEFT half of weapon set 2 (the right weapon box).",
+    "weapon2_offhand": "Hover the RIGHT half of weapon set 2 (the right weapon box).",
+}
 
 STATS_STEPS = [
     (
@@ -69,7 +83,8 @@ def build_steps():
     ))
     for slot in SLOT_ORDER:
         label = slot.replace("_", " ")
-        steps.append((slot, f"Hover over the {label} slot."))
+        desc = SLOT_DESCRIPTIONS.get(slot, f"Hover over the {label} slot.")
+        steps.append((slot, desc))
 
     # Transition: user must manually open the details panel so the scroll bar appears.
     steps.append((

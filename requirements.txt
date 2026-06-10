@@ -1,6 +1,7 @@
-pyautogui
-mss
-Pillow
-keyboard
-numpy
-scipy
+pyautogui==0.9.54
+pygetwindow==0.0.9
+mss==10.2.0
+Pillow==12.1.1
+keyboard==0.13.5
+numpy==2.4.2
+scipy==1.17.1

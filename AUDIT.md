@@ -4,6 +4,10 @@ Findings from reading `capture.py`, `calibrate.py`, `calibrate_stats.py`,
 `calibration_overlay.py`, `debug_capture.py`, `slots.json`, and
 `requirements.txt`. Ordered by severity.
 
+> **Status 2026-06-10:** items 1, 2, 4, 5, 7, 8, 11 fixed (see git history).
+> Item 3 mitigated with a comment; a hold-ESC mid-capture abort remains open.
+> Items 6, 9, 10, 12 and the nits remain open.
+
 ## Bugs
 
 ### 1. `pygetwindow` missing from `requirements.txt`

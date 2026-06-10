@@ -53,6 +53,9 @@ class CalibrationOverlay:
     def run(self):
         self.root = tk.Tk()
         self.root.title(self.title)
+        # Closing the window via the X button is an abort, not a success —
+        # otherwise the caller would receive a partial results dict.
+        self.root.protocol("WM_DELETE_WINDOW", self._abort)
         self.root.attributes("-topmost", True)
         self.root.geometry(f"520x260+{self.start_xy[0]}+{self.start_xy[1]}")
         self.root.configure(bg=BG)
@@ -93,6 +96,10 @@ class CalibrationOverlay:
         self.root.after(POLL_MS, self._tick)
         self.root.mainloop()
         return None if self.aborted else self.results
+
+    def _abort(self):
+        self.aborted = True
+        self.root.destroy()
 
     def _refresh_step(self):
         if self.current >= len(self.steps):

@@ -10,7 +10,9 @@ Press ESC to quit.
 Outputs go to ./output/kit_<timestamp>.png.
 """
 import json
+import threading
 import time
+import traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -22,6 +24,9 @@ import pygetwindow as gw
 from PIL import Image
 from scipy import ndimage
 
+# Failsafe off because the script itself drives the cursor to absolute
+# positions that may graze a screen corner. The capture is short and
+# ESC quits the listener between runs.
 pyautogui.FAILSAFE = False
 
 CONFIG_PATH = Path(__file__).parent / "slots.json"
@@ -33,12 +38,24 @@ GRID_COLS = 4
 
 GAME_TITLE_HINTS = ("dark and darker", "dungeoncrawler", "dungeon crawler")
 
+# Each weapon set holds either one two-handed weapon or a main + offhand.
+# With a 2H equipped, hovering both halves shows the same tooltip twice —
+# detect that and keep only one.
+WEAPON_PAIRS = (
+    ("weapon1_main", "weapon1_offhand"),
+    ("weapon2_main", "weapon2_offhand"),
+)
+DEDUPE_MAX_MEAN_DIFF = 3.0  # mean abs pixel diff below this = same tooltip
+DEDUPE_MAX_SIZE_DIFF = 6    # px of bbox jitter tolerated between the two crops
+
 WARMUP_DELAY = 1.0       # seconds after bringing game to front
 HOVER_DELAY = 0.75       # seconds — let tooltip animate in
 FIRST_HOVER_BONUS = 0.4  # extra wait on first slot
 DIFF_THRESHOLD = 50      # per-pixel summed-channel diff to count as changed
                           # (higher = ignores tooltip shadow / faint UI shimmer)
 CURSOR_MASK_RADIUS = 35  # px around cursor positions to ignore in diff
+QUADRANT_MARGIN = 10     # tooltips anchor at the cursor and extend down-right;
+                          # ignore diff pixels more than this far up/left of it
 DILATION_ITERS = 5       # close gaps in tooltip text without bridging to the slot
 MIN_TOOLTIP_AREA = 8000  # sanity check on detected component size
 SLOT_CLIP_RADIUS = 80    # px around slot center to exclude from final tooltip bbox
@@ -168,6 +185,15 @@ def capture_slot(sct, monitor, baseline, rest_local, slot_pos, hover_delay):
 
     slot_local = (slot_pos[0] - monitor["left"], slot_pos[1] - monitor["top"])
     mask = make_diff_mask(baseline, current)
+
+    # Tooltips anchor at the cursor and extend down-right, so anything that
+    # changed up/left of the hover point (slot highlight, gear icon, other
+    # UI shimmer) is by definition not the tooltip.
+    qx = max(0, slot_local[0] - QUADRANT_MARGIN)
+    qy = max(0, slot_local[1] - QUADRANT_MARGIN)
+    mask[:qy, :] = False
+    mask[:, :qx] = False
+
     punch_hole(mask, slot_local[0], slot_local[1], CURSOR_MASK_RADIUS)
     punch_hole(mask, rest_local[0], rest_local[1], CURSOR_MASK_RADIUS)
 
@@ -179,6 +205,30 @@ def capture_slot(sct, monitor, baseline, rest_local, slot_pos, hover_delay):
     if not looks_like_tooltip(crop):
         return None
     return Image.fromarray(crop), bbox
+
+
+def images_similar(a, b, max_mean_diff=DEDUPE_MAX_MEAN_DIFF):
+    """True if two tooltip crops show the same content (modulo bbox jitter)."""
+    if abs(a.width - b.width) > DEDUPE_MAX_SIZE_DIFF:
+        return False
+    if abs(a.height - b.height) > DEDUPE_MAX_SIZE_DIFF:
+        return False
+    w = min(a.width, b.width)
+    h = min(a.height, b.height)
+    aa = np.asarray(a)[:h, :w].astype(np.int16)
+    bb = np.asarray(b)[:h, :w].astype(np.int16)
+    return float(np.abs(aa - bb).mean()) < max_mean_diff
+
+
+def dedupe_weapon_pairs(by_slot, log):
+    """Drop the offhand capture when it duplicates the main-hand capture
+    (a two-handed weapon fills the whole set, so both hovers show the
+    same tooltip)."""
+    for main, off in WEAPON_PAIRS:
+        a, b = by_slot.get(main), by_slot.get(off)
+        if a is not None and b is not None and images_similar(a, b):
+            by_slot[off] = None
+            log.append(f"  {off:18s} -> duplicate of {main} (two-handed) — dropped")
 
 
 def stitch_grid(images, cols=GRID_COLS, padding=12, bg=(18, 18, 20)):
@@ -357,24 +407,25 @@ def run_capture(config):
     time.sleep(0.5)
 
     log = []
+    by_slot = {}
     with mss.MSS() as sct:
         monitor = pick_monitor(sct, win)
         rest_local = (rest[0] - monitor["left"], rest[1] - monitor["top"])
         baseline = grab_rgb(sct, monitor)
-        images = []
         for i, slot in enumerate(order):
             delay = HOVER_DELAY + (FIRST_HOVER_BONUS if i == 0 else 0)
             result = capture_slot(sct, monitor, baseline, rest_local, slots[slot], delay)
             if result is None:
                 log.append(f"  {slot:18s} -> SKIPPED (empty or no tooltip)")
-                images.append(None)
+                by_slot[slot] = None
             else:
                 img, bbox = result
                 log.append(f"  {slot:18s} -> {img.width}x{img.height} @ ({bbox[0]},{bbox[1]})")
-                images.append(img)
+                by_slot[slot] = img
         pyautogui.moveTo(rest[0], rest[1])
 
-    grid = stitch_grid(images)
+    dedupe_weapon_pairs(by_slot, log)
+    grid = stitch_grid([by_slot[s] for s in order])
 
     stats_img = None
     stats_cfg = config.get("stats")
@@ -402,17 +453,71 @@ def run_capture(config):
     print(f"  Saved {out_path}\n")
 
 
-def main():
+def load_config():
+    """Load and validate slots.json. Returns None (with a message) if unusable."""
     if not CONFIG_PATH.exists():
         print(f"Missing {CONFIG_PATH.name}. Run calibrate.py first.")
+        return None
+    try:
+        config = json.loads(CONFIG_PATH.read_text())
+    except json.JSONDecodeError as e:
+        print(f"{CONFIG_PATH.name} is not valid JSON ({e}). Re-run calibrate.py.")
+        return None
+
+    missing_keys = [k for k in ("rest", "slots", "order") if k not in config]
+    if missing_keys:
+        print(f"{CONFIG_PATH.name} is missing {missing_keys} — it's from an older "
+              "version or a partial run. Re-run calibrate.py.")
+        return None
+
+    missing_slots = [s for s in config["order"] if s not in config["slots"]]
+    if missing_slots:
+        print(f"{CONFIG_PATH.name} has no position for {missing_slots}. Re-run calibrate.py.")
+        return None
+
+    if not any(s.startswith("weapon") for s in config["order"]):
+        print("NOTE: this calibration predates 4-weapon-slot support "
+              "(it has primary/secondary only). Capture still works; "
+              "re-run calibrate.py to record all four weapon positions.")
+
+    if "stats" not in config:
+        print("NOTE: no stats-panel calibration found — gear only. "
+              "Run calibrate.py (or calibrate_stats.py) to add it.")
+    return config
+
+
+_capture_lock = threading.Lock()
+
+
+def _on_hotkey(config):
+    """Hotkey callback: one capture at a time, tracebacks made visible.
+
+    The keyboard library runs this on its own worker thread — without the
+    lock a second F8 press mid-capture would start a concurrent capture,
+    and without the try/except a crash would vanish silently.
+    """
+    if not _capture_lock.acquire(blocking=False):
+        print("[capture] busy — ignored extra hotkey press")
         return
-    config = json.loads(CONFIG_PATH.read_text())
+    try:
+        run_capture(config)
+    except Exception:
+        print("[capture] CRASHED:")
+        traceback.print_exc()
+    finally:
+        _capture_lock.release()
+
+
+def main():
+    config = load_config()
+    if config is None:
+        return
 
     print(f"Loaded {len(config['order'])} slots from {CONFIG_PATH.name}")
     print(f"Press {HOTKEY.upper()} (any window) to capture — game will be auto-focused.")
     print(f"Press {QUIT_KEY.upper()} to quit.\n")
 
-    keyboard.add_hotkey(HOTKEY, lambda: run_capture(config))
+    keyboard.add_hotkey(HOTKEY, lambda: _on_hotkey(config))
     keyboard.wait(QUIT_KEY)
     print("Bye.")
 
