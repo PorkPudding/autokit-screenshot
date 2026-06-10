@@ -45,8 +45,10 @@ WEAPON_PAIRS = (
     ("weapon1_main", "weapon1_offhand"),
     ("weapon2_main", "weapon2_offhand"),
 )
-DEDUPE_MAX_MEAN_DIFF = 3.0  # mean abs pixel diff below this = same tooltip
-DEDUPE_MAX_SIZE_DIFF = 6    # px of bbox jitter tolerated between the two crops
+DEDUPE_MAX_MEAN_DIFF = 4.0  # mean abs gray diff (at best alignment) = same tooltip
+DEDUPE_MAX_W_DIFF = 80      # crops can differ in size due to bbox jitter or a
+DEDUPE_MAX_H_DIFF = 40      # clipped edge; sizes beyond this = different items
+DEDUPE_SHIFT = 4            # alignment search radius (px) between the two crops
 
 WARMUP_DELAY = 1.0       # seconds after bringing game to front
 HOVER_DELAY = 0.75       # seconds — let tooltip animate in
@@ -208,50 +210,78 @@ def capture_slot(sct, monitor, baseline, rest_local, slot_pos, hover_delay):
 
 
 def images_similar(a, b, max_mean_diff=DEDUPE_MAX_MEAN_DIFF):
-    """True if two tooltip crops show the same content (modulo bbox jitter)."""
-    if abs(a.width - b.width) > DEDUPE_MAX_SIZE_DIFF:
+    """True if two tooltip crops show the same content.
+
+    The same tooltip captured from two hover points lands at different
+    screen positions, so the two bounding boxes can be offset by a few
+    pixels and even differ in size (edge clipping). A pixel-perfect
+    comparison would misalign all the text and report 'different' — so
+    slide the crops against each other within DEDUPE_SHIFT and take the
+    best-aligned diff.
+    """
+    if abs(a.width - b.width) > DEDUPE_MAX_W_DIFF:
         return False
-    if abs(a.height - b.height) > DEDUPE_MAX_SIZE_DIFF:
+    if abs(a.height - b.height) > DEDUPE_MAX_H_DIFF:
         return False
     w = min(a.width, b.width)
     h = min(a.height, b.height)
-    aa = np.asarray(a)[:h, :w].astype(np.int16)
-    bb = np.asarray(b)[:h, :w].astype(np.int16)
-    return float(np.abs(aa - bb).mean()) < max_mean_diff
+    if w < 60 or h < 60:
+        return False
+    ga = np.asarray(a.convert("L"), dtype=np.int16)[:h, :w]
+    gb = np.asarray(b.convert("L"), dtype=np.int16)[:h, :w]
+
+    best = None
+    for dy in range(-DEDUPE_SHIFT, DEDUPE_SHIFT + 1):
+        for dx in range(-DEDUPE_SHIFT, DEDUPE_SHIFT + 1):
+            oh, ow = h - abs(dy), w - abs(dx)
+            ax, ay = max(0, dx), max(0, dy)
+            bx, by = max(0, -dx), max(0, -dy)
+            d = float(np.abs(
+                ga[ay:ay + oh, ax:ax + ow] - gb[by:by + oh, bx:bx + ow]
+            ).mean())
+            if best is None or d < best:
+                best = d
+    return best is not None and best < max_mean_diff
 
 
 def dedupe_weapon_pairs(by_slot, log):
-    """Drop the offhand capture when it duplicates the main-hand capture
-    (a two-handed weapon fills the whole set, so both hovers show the
-    same tooltip)."""
+    """Collapse a weapon pair to one capture when both hovers showed the
+    same tooltip (a two-handed weapon fills the whole set). Keeps the
+    larger of the two crops — if one was clipped, the other is complete."""
     for main, off in WEAPON_PAIRS:
         a, b = by_slot.get(main), by_slot.get(off)
         if a is not None and b is not None and images_similar(a, b):
+            if b.width * b.height > a.width * a.height:
+                by_slot[main] = b
             by_slot[off] = None
             log.append(f"  {off:18s} -> duplicate of {main} (two-handed) — dropped")
 
 
 def stitch_grid(images, cols=GRID_COLS, padding=12, bg=(18, 18, 20)):
-    """Pack the given PIL images into a grid, skipping any None entries
-    and shrinking the grid to fit only the detected pieces."""
+    """Pack the given PIL images into a grid, skipping any None entries.
+
+    Cards are top-aligned within each row, and each row starts right
+    below the tallest card of the row above — rows pack as tightly as
+    the cards allow instead of reserving a uniform cell height.
+    Columns stay at fixed positions (uniform width, centered).
+    """
     valid = [im for im in images if im is not None]
     if not valid:
         return Image.new("RGB", (200, 200), bg)
     cell_w = max(im.width for im in valid)
-    cell_h = max(im.height for im in valid)
-    n = len(valid)
-    use_cols = min(cols, n)
-    rows = (n + use_cols - 1) // use_cols
+    use_cols = min(cols, len(valid))
+    rows = [valid[i:i + use_cols] for i in range(0, len(valid), use_cols)]
 
     canvas_w = use_cols * cell_w + (use_cols + 1) * padding
-    canvas_h = rows * cell_h + (rows + 1) * padding
+    canvas_h = padding + sum(max(im.height for im in row) + padding for row in rows)
     canvas = Image.new("RGB", (canvas_w, canvas_h), bg)
 
-    for i, im in enumerate(valid):
-        r, c = divmod(i, use_cols)
-        ox = padding + c * (cell_w + padding) + (cell_w - im.width) // 2
-        oy = padding + r * (cell_h + padding) + (cell_h - im.height) // 2
-        canvas.paste(im, (ox, oy))
+    y = padding
+    for row in rows:
+        for c, im in enumerate(row):
+            ox = padding + c * (cell_w + padding) + (cell_w - im.width) // 2
+            canvas.paste(im, (ox, y))
+        y += max(im.height for im in row) + padding
     return canvas
 
 
