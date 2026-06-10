@@ -4,9 +4,11 @@ Findings from reading `capture.py`, `calibrate.py`, `calibrate_stats.py`,
 `calibration_overlay.py`, `debug_capture.py`, `slots.json`, and
 `requirements.txt`. Ordered by severity.
 
-> **Status 2026-06-10:** items 1, 2, 4, 5, 7, 8, 11 fixed (see git history).
-> Item 3 mitigated with a comment; a hold-ESC mid-capture abort remains open.
-> Items 6, 9, 10, 12 and the nits remain open.
+> **Status 2026-06-10 (second pass):** items 1, 2, 4, 5, 6, 7, 8, 11 fixed and
+> the nits addressed (see git history). Item 3: hold-ESC now aborts a capture
+> between slots. Item 12 partially addressed — calibration records the game
+> window rect and capture refuses to run if it moved; constants are still
+> hand-tuned for 2560x1440. Items 9 and 10 remain open (low priority).
 
 ## Bugs
 

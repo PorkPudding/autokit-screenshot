@@ -1,52 +1,60 @@
 {
   "rest": [
-    1653,
-    902
+    1594,
+    713
   ],
   "slots": {
     "helmet": [
-      1151,
-      314
+      1149,
+      323
     ],
     "necklace": [
-      1250,
-      345
+      1227,
+      332
     ],
     "chest": [
-      1180,
-      436
+      1138,
+      451
     ],
     "cape": [
-      1287,
-      512
+      1271,
+      494
     ],
     "hands": [
-      1031,
-      694
+      1023,
+      686
     ],
     "legs": [
-      1159,
-      701
+      1137,
+      673
     ],
     "boots": [
-      1271,
-      703
-    ],
-    "primary_weapon": [
-      952,
-      365
+      1285,
+      709
     ],
     "ring_left": [
-      1031,
-      614
+      1030,
+      602
     ],
     "ring_right": [
-      1266,
-      608
+      1257,
+      598
     ],
-    "secondary_weapon": [
-      1340,
-      367
+    "weapon1_main": [
+      866,
+      359
+    ],
+    "weapon1_offhand": [
+      956,
+      358
+    ],
+    "weapon2_main": [
+      1341,
+      353
+    ],
+    "weapon2_offhand": [
+      1434,
+      354
     ]
   },
   "order": [
@@ -57,31 +65,33 @@
     "hands",
     "legs",
     "boots",
-    "primary_weapon",
     "ring_left",
     "ring_right",
-    "secondary_weapon"
+    "weapon1_main",
+    "weapon1_offhand",
+    "weapon2_main",
+    "weapon2_offhand"
   ],
   "stats": {
     "details_button": [
-      418,
-      1358
+      397,
+      1357
     ],
     "scroll_top": [
-      733,
-      236
+      734,
+      239
     ],
     "scroll_bottom": [
-      734,
-      1291
+      732,
+      1272
     ],
     "panel_tl": [
-      20,
-      161
+      68,
+      224
     ],
     "panel_br": [
-      729,
-      1317
+      721,
+      1320
     ]
   }
 }

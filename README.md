@@ -31,7 +31,8 @@ The `keyboard` package may require running Python as Administrator to register g
 | File | Purpose |
 |---|---|
 | `capture.py` | Main capture loop. Press F8 to grab a kit screenshot. |
-| `calibrate.py` | Full calibration: records all 13 gear slot positions (9 armor/jewelry + both halves of both weapon sets) plus the stats panel. Writes `slots.json`. |
+| `common.py` | Shared screen/window helpers (screenshots, monitor picking, game-window focus). Not run directly. |
+| `calibrate.py` | Full calibration: records all 13 gear slot positions (9 armor/jewelry + both halves of both weapon sets) plus the stats panel and the game window's position. Writes `slots.json`. |
 | `calibrate_stats.py` | Re-calibrates just the stats panel section without touching gear positions. |
 | `calibration_overlay.py` | The always-on-top Tk window used by both calibrators. Not run directly. |
 | `debug_capture.py` | Diagnostic tool. Dumps raw screenshots + red diff masks per slot to `debug/`, with a stronger Win32 focus call. Use when capture is misbehaving. |
@@ -64,7 +65,9 @@ The `keyboard` package may require running Python as Administrator to register g
 5. Stitch them vertically using normalized cross-correlation — take the last `NEEDLE_HEIGHT` rows of the bottom image as a needle, slide it down the top image, and concatenate at the best-matching overlap. If no good match is found, concatenate with a red separator bar so the gap is visible. If the two screenshots are nearly identical (list didn't scroll), just keep the top one.
 6. Close the details panel.
 
-**Compose:** stats column on the left, gear grid on the right, padded background, saved to `output/kit_<YYYYMMDD_HHMMSS>.png`.
+**Compose:** stats column on the left, gear grid on the right, padded background, saved to `output/kit_<YYYYMMDD_HHMMSS>.png` and copied to the clipboard (paste straight into Discord with Ctrl+V; set `COPY_TO_CLIPBOARD = False` to disable).
+
+**Safety checks:** if the game window has moved or resized since calibration, the capture aborts with a message instead of clicking at stale coordinates. Holding ESC during a capture aborts it between slots.
 
 ## Quick start
 

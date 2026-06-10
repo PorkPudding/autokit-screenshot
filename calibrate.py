@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 from calibration_overlay import CalibrationOverlay
+from common import find_game_window, window_rect
 
 SLOT_ORDER = [
     "helmet",
@@ -122,6 +123,17 @@ def main():
     existing["slots"] = {k: results[k] for k in SLOT_ORDER}
     existing["order"] = SLOT_ORDER
     existing["stats"] = {key: results[key] for key, _ in STATS_STEPS}
+
+    # Record where the game window sits so capture.py can refuse to run
+    # against a moved/resized window (the absolute coords would be wrong).
+    win = find_game_window()
+    if win is not None:
+        existing["window"] = window_rect(win)
+    else:
+        existing["window"] = None
+        print("WARNING: couldn't find the game window — calibration saved without "
+              "a window-position record, so capture.py can't detect window moves.")
+
     CONFIG_PATH.write_text(json.dumps(existing, indent=2))
     print(
         f"Saved {len(SLOT_ORDER)} gear slots + rest + {len(STATS_STEPS)} stats points "

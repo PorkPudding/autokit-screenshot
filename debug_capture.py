@@ -11,7 +11,6 @@ Press ESC to quit.
 Outputs go to ./debug/ — one PNG per slot (raw screenshot) and
 one diff_<slot>.png (red where pixels changed vs baseline).
 """
-import ctypes
 import json
 import time
 from pathlib import Path
@@ -20,70 +19,21 @@ import keyboard
 import mss
 import numpy as np
 import pyautogui
-import pygetwindow as gw
 from PIL import Image
+
+from common import find_game_window, force_focus, grab_rgb, pick_monitor
 
 pyautogui.FAILSAFE = False
 
 CONFIG_PATH = Path(__file__).parent / "slots.json"
 DEBUG_DIR = Path(__file__).parent / "debug"
 
-GAME_TITLE_HINTS = ("dark and darker", "dungeoncrawler", "dungeon crawler")
 WARMUP_DELAY = 1.0
 HOVER_DELAY = 0.9
+# Deliberately more sensitive than capture.py's DIFF_THRESHOLD (50): the
+# diagnostic should show everything that changed, including faint shimmer
+# the real pipeline ignores.
 DIFF_THRESHOLD = 25
-
-
-def grab_rgb(sct, monitor):
-    sct_img = sct.grab(monitor)
-    arr = np.frombuffer(sct_img.bgra, dtype=np.uint8).reshape(sct_img.height, sct_img.width, 4)
-    return np.ascontiguousarray(arr[:, :, [2, 1, 0]])
-
-
-def pick_monitor(sct, win):
-    if win is not None:
-        cx = win.left + win.width // 2
-        cy = win.top + win.height // 2
-        for mon in sct.monitors[1:]:
-            if (mon["left"] <= cx < mon["left"] + mon["width"]
-                    and mon["top"] <= cy < mon["top"] + mon["height"]):
-                return mon
-    return sct.monitors[1]
-
-
-def find_game_window():
-    for title in gw.getAllTitles():
-        low = title.lower()
-        if any(hint in low for hint in GAME_TITLE_HINTS):
-            wins = gw.getWindowsWithTitle(title)
-            if wins:
-                return wins[0]
-    return None
-
-
-def force_focus(win):
-    if win is None:
-        return False
-    try:
-        hwnd = win._hWnd
-    except AttributeError:
-        print("[debug] WARNING: window object has no _hWnd — cannot force focus. "
-              "Focus may fail; check 00_baseline.png shows the game.")
-        return False
-    user32 = ctypes.windll.user32
-    SW_RESTORE = 9
-    user32.ShowWindow(hwnd, SW_RESTORE)
-    # AttachThreadInput trick: attach our input to foreground thread, then SetForegroundWindow
-    fg = user32.GetForegroundWindow()
-    fg_thread = user32.GetWindowThreadProcessId(fg, 0)
-    our_thread = ctypes.windll.kernel32.GetCurrentThreadId()
-    if fg_thread != our_thread:
-        user32.AttachThreadInput(our_thread, fg_thread, True)
-    user32.BringWindowToTop(hwnd)
-    user32.SetForegroundWindow(hwnd)
-    if fg_thread != our_thread:
-        user32.AttachThreadInput(our_thread, fg_thread, False)
-    return True
 
 
 def diff_visual(baseline, current):
@@ -99,7 +49,7 @@ def run_debug(config):
     order = config["order"]
     slots = config["slots"]
 
-    DEBUG_DIR.mkdir(exist_ok=True)
+    DEBUG_DIR.mkdir(parents=True, exist_ok=True)
     for old in DEBUG_DIR.glob("*.png"):
         old.unlink()
 

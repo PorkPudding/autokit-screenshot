@@ -9,6 +9,7 @@ Press ESC to quit.
 
 Outputs go to ./output/kit_<timestamp>.png.
 """
+import io
 import json
 import threading
 import time
@@ -20,13 +21,14 @@ import keyboard
 import mss
 import numpy as np
 import pyautogui
-import pygetwindow as gw
 from PIL import Image
 from scipy import ndimage
 
+from common import focus_game, grab_rgb, pick_monitor, window_rect
+
 # Failsafe off because the script itself drives the cursor to absolute
-# positions that may graze a screen corner. The capture is short and
-# ESC quits the listener between runs.
+# positions that may graze a screen corner. Captures are short, and
+# holding ESC aborts a capture between slots.
 pyautogui.FAILSAFE = False
 
 CONFIG_PATH = Path(__file__).parent / "slots.json"
@@ -35,8 +37,8 @@ OUTPUT_DIR = Path(__file__).parent / "output"
 HOTKEY = "f8"
 QUIT_KEY = "esc"
 GRID_COLS = 4
-
-GAME_TITLE_HINTS = ("dark and darker", "dungeoncrawler", "dungeon crawler")
+COPY_TO_CLIPBOARD = True   # also place the final image on the clipboard
+WINDOW_MOVE_TOLERANCE = 2  # px the game window may differ from calibration
 
 # Each weapon set holds either one two-handed weapon or a main + offhand.
 # With a 2H equipped, hovering both halves shows the same tooltip twice —
@@ -71,6 +73,7 @@ EMPTY_SLOT_MAX_SATURATION = 55   # tooltips have low color saturation
 
 # Stats panel timing & behavior
 DETAILS_OPEN_DELAY = 0.7   # wait for details panel to expand
+DETAILS_CLOSE_DELAY = 0.4  # wait for details panel to collapse again
 SCROLL_DELAY = 0.4         # wait for scroll to settle
 STATS_REST_DELAY = 0.3     # wait after parking cursor before screenshot
 SCROLL_CLICKS = 30         # multi-click the scroll target to ensure it reaches the end
@@ -80,22 +83,8 @@ STITCH_NCC_MIN = 0.70      # minimum normalized correlation to accept overlap ma
 IDENTICAL_DIFF = 2.0       # below this mean diff, treat images as "scrolling didn't move"
 
 
-def grab_rgb(sct, monitor):
-    sct_img = sct.grab(monitor)
-    arr = np.frombuffer(sct_img.bgra, dtype=np.uint8).reshape(sct_img.height, sct_img.width, 4)
-    return np.ascontiguousarray(arr[:, :, [2, 1, 0]])
-
-
-def pick_monitor(sct, win):
-    """Return the mss monitor dict that contains the game window's center."""
-    if win is not None:
-        cx = win.left + win.width // 2
-        cy = win.top + win.height // 2
-        for mon in sct.monitors[1:]:
-            if (mon["left"] <= cx < mon["left"] + mon["width"]
-                    and mon["top"] <= cy < mon["top"] + mon["height"]):
-                return mon
-    return sct.monitors[1]
+class CaptureAborted(Exception):
+    """Raised when the user holds ESC during a capture run."""
 
 
 def make_diff_mask(baseline, current):
@@ -366,7 +355,7 @@ def capture_stats(sct, monitor, stats_cfg, rest_global, debug_dir=None):
     bottom_full = grab_rgb(sct, monitor)
 
     pyautogui.click(db[0], db[1])
-    time.sleep(0.4)
+    time.sleep(DETAILS_CLOSE_DELAY)
 
     x0 = min(tl[0], br[0]) - monitor["left"]
     x1 = max(tl[0], br[0]) - monitor["left"]
@@ -400,27 +389,35 @@ def compose_final(stats_img, gear_grid, padding=20, bg=(18, 18, 20)):
     return canvas
 
 
-def find_game_window():
-    for title in gw.getAllTitles():
-        low = title.lower()
-        if any(hint in low for hint in GAME_TITLE_HINTS):
-            wins = gw.getWindowsWithTitle(title)
-            if wins:
-                return wins[0]
-    return None
-
-
-def focus_game():
-    win = find_game_window()
-    if win is None:
-        return None
+def copy_to_clipboard(img):
+    """Place a PIL image on the Windows clipboard as CF_DIB."""
+    import win32clipboard
+    out = io.BytesIO()
+    img.convert("RGB").save(out, "BMP")
+    data = out.getvalue()[14:]  # strip the BITMAPFILEHEADER
+    win32clipboard.OpenClipboard()
     try:
-        if win.isMinimized:
-            win.restore()
-        win.activate()
-    except Exception:
-        pass
-    return win
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
+    finally:
+        win32clipboard.CloseClipboard()
+
+
+def check_window_unchanged(config, win):
+    """Compare the game window rect against the one stored at calibration.
+
+    Returns an error message if the window moved/resized (slot positions
+    would be wrong), None if it matches or can't be checked.
+    """
+    saved = config.get("window")
+    if saved is None or win is None:
+        return None
+    current = window_rect(win)
+    if all(abs(a - b) <= WINDOW_MOVE_TOLERANCE for a, b in zip(saved, current)):
+        return None
+    return (f"game window is at {current} but calibration was done at {saved}. "
+            "Slot positions would be misaligned — move/resize the window back, "
+            "or re-run calibrate.py.")
 
 
 def run_capture(config):
@@ -428,10 +425,15 @@ def run_capture(config):
     order = config["order"]
     slots = config["slots"]
 
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     win = focus_game()
     time.sleep(WARMUP_DELAY)
+
+    window_error = check_window_unchanged(config, win)
+    if window_error:
+        print(f"\n[capture] ABORTED: {window_error}\n")
+        return
 
     pyautogui.moveTo(rest[0], rest[1])
     time.sleep(0.5)
@@ -443,6 +445,8 @@ def run_capture(config):
         rest_local = (rest[0] - monitor["left"], rest[1] - monitor["top"])
         baseline = grab_rgb(sct, monitor)
         for i, slot in enumerate(order):
+            if keyboard.is_pressed(QUIT_KEY):
+                raise CaptureAborted
             delay = HOVER_DELAY + (FIRST_HOVER_BONUS if i == 0 else 0)
             result = capture_slot(sct, monitor, baseline, rest_local, slots[slot], delay)
             if result is None:
@@ -460,6 +464,8 @@ def run_capture(config):
     stats_img = None
     stats_cfg = config.get("stats")
     if stats_cfg:
+        if keyboard.is_pressed(QUIT_KEY):
+            raise CaptureAborted
         try:
             with mss.MSS() as sct:
                 monitor = pick_monitor(sct, win)
@@ -471,6 +477,13 @@ def run_capture(config):
     final = compose_final(stats_img, grid)
     out_path = OUTPUT_DIR / f"kit_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
     final.save(out_path)
+
+    if COPY_TO_CLIPBOARD:
+        try:
+            copy_to_clipboard(final)
+            log.append("  clipboard          -> copied (paste with Ctrl+V)")
+        except Exception as e:
+            log.append(f"  clipboard          -> FAILED: {e}")
 
     print("\n[capture] Done.")
     if win is None:
@@ -531,6 +544,8 @@ def _on_hotkey(config):
         return
     try:
         run_capture(config)
+    except CaptureAborted:
+        print("\n[capture] aborted by ESC\n")
     except Exception:
         print("[capture] CRASHED:")
         traceback.print_exc()
