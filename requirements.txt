@@ -1,0 +1,6 @@
+pyautogui
+mss
+Pillow
+keyboard
+numpy
+scipy
