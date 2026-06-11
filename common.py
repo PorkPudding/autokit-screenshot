@@ -2,6 +2,8 @@
 Shared screen/window helpers and app paths.
 """
 import ctypes
+import ctypes.wintypes
+import os
 import sys
 from pathlib import Path
 
@@ -9,6 +11,11 @@ import numpy as np
 import pygetwindow as gw
 
 GAME_TITLE_HINTS = ("dark and darker", "dungeoncrawler", "dungeon crawler")
+# The real game window is titled exactly "Dark and Darker" (modulo
+# surrounding whitespace); substring matches are only a fallback.
+GAME_TITLE_EXACT = ("dark and darker",)
+# Never treat our own windows (or another instance's) as the game.
+EXCLUDE_TITLE_HINTS = ("autokit",)
 
 # Resolution the built-in profile and detection constants were tuned at.
 REFERENCE_W = 2560
@@ -42,13 +49,48 @@ def pick_monitor(sct, win):
     return sct.monitors[1]
 
 
+def _window_pid(win):
+    """Process id owning a pygetwindow window, or None."""
+    try:
+        hwnd = win._hWnd
+    except AttributeError:
+        return None
+    pid = ctypes.wintypes.DWORD()
+    ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    return pid.value
+
+
 def find_game_window():
-    for title in gw.getAllTitles():
-        low = title.lower()
-        if any(hint in low for hint in GAME_TITLE_HINTS):
-            wins = gw.getWindowsWithTitle(title)
-            if wins:
-                return wins[0]
+    """Find the actual game window.
+
+    Guards against false positives:
+    - never a window of this process (the GUI window, calibration overlay,
+      or a console could otherwise match by title)
+    - never a title containing 'autokit' (another instance of this app)
+    - an exact title match ('Dark and Darker') beats substring matches
+      (e.g. a browser tab or folder named after the game)
+    """
+    exact, fuzzy = [], []
+    our_pid = os.getpid()
+    # Filter on each window's own title — getWindowsWithTitle() substring-
+    # matches and would leak excluded windows back in.
+    for win in gw.getAllWindows():
+        low = win.title.strip().lower()
+        if not low:
+            continue
+        if any(bad in low for bad in EXCLUDE_TITLE_HINTS):
+            continue
+        if not any(hint in low for hint in GAME_TITLE_HINTS):
+            continue
+        if _window_pid(win) == our_pid:
+            continue
+        if win.width <= 0 or win.height <= 0:
+            continue
+        (exact if low in GAME_TITLE_EXACT else fuzzy).append(win)
+    if exact:
+        return exact[0]
+    if fuzzy:
+        return fuzzy[0]
     return None
 
 

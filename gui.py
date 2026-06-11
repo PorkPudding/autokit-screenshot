@@ -39,7 +39,9 @@ PREVIEW_MAX_H = 220
 class AutoKitGUI:
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("AutoKit Screenshot — Dark and Darker")
+        # NOTE: the title must NOT contain the game's name — find_game_window
+        # matches window titles, and we must never match ourselves.
+        self.root.title("AutoKit Screenshot")
         self.root.configure(bg=BG)
         self.root.geometry("600x680")
         self.root.minsize(520, 560)
