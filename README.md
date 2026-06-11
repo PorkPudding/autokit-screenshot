@@ -42,6 +42,10 @@ This is expected for small unsigned programs that register global hotkeys
 and move the mouse — those are exactly the tool's features, and they
 pattern-match what AV heuristics look for. If you're cautious (good!):
 
+- **[VirusTotal scan of the v1.0.0 exe](https://www.virustotal.com/gui/file/b7c421c92b1cf05f026a79dd57e789c46f88e75f80e3dbd00c38c873a851a27a/detection)** —
+  you can verify your download is the same file by checking its SHA-256:
+  `b7c421c92b1cf05f026a79dd57e789c46f88e75f80e3dbd00c38c873a851a27a`
+  (in PowerShell: `Get-FileHash AutoKitScreenshot.exe`)
 - The complete source code is this repository — read it, then run from
   source with `pip install -r requirements.txt` and `python autokit.py`,
   or build the exe yourself with `build.bat`.
