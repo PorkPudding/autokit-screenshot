@@ -18,7 +18,7 @@ import keyboard
 from PIL import Image, ImageTk
 
 import capture
-from common import app_dir, find_game_window, window_rect
+from common import app_dir, find_game_window, resource_path, window_rect
 
 BG = "#14141a"
 PANEL = "#1d1d26"
@@ -41,7 +41,13 @@ class AutoKitGUI:
         self.root = tk.Tk()
         # NOTE: the title must NOT contain the game's name — find_game_window
         # matches window titles, and we must never match ourselves.
-        self.root.title("AutoKit Screenshot")
+        self.root.title("D.A.D's A.Ss")
+        ico = resource_path("assets/icon.ico")
+        if ico.exists():
+            try:
+                self.root.iconbitmap(str(ico))
+            except tk.TclError:
+                pass
         self.root.configure(bg=BG)
         self.root.geometry("600x680")
         self.root.minsize(520, 560)
@@ -61,11 +67,22 @@ class AutoKitGUI:
     # ---------- UI construction ----------
 
     def _build_widgets(self):
-        header = tk.Label(self.root, text="AutoKit Screenshot",
-                          font=("Segoe UI", 16, "bold"), fg=FG, bg=BG)
-        header.pack(pady=(14, 2))
-        tk.Label(self.root, text="Captures your whole kit + stats into one image",
-                 font=("Segoe UI", 9), fg=FG_DIM, bg=BG).pack()
+        logo_path = resource_path("assets/logo.png")
+        self._logo_photo = None
+        if logo_path.exists():
+            try:
+                img = Image.open(logo_path)
+                img.thumbnail((460, 130))
+                self._logo_photo = ImageTk.PhotoImage(img)
+            except Exception:
+                self._logo_photo = None
+        if self._logo_photo is not None:
+            tk.Label(self.root, image=self._logo_photo, bg=BG).pack(pady=(14, 2))
+        else:
+            tk.Label(self.root, text="D.A.D's A.Ss",
+                     font=("Segoe UI", 16, "bold"), fg=FG, bg=BG).pack(pady=(14, 2))
+            tk.Label(self.root, text="Dark and Darker Auto Screenshot",
+                     font=("Segoe UI", 9), fg=FG_DIM, bg=BG).pack()
 
         # Status panel
         status = tk.Frame(self.root, bg=PANEL)

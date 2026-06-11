@@ -30,6 +30,14 @@ def app_dir():
     return Path(__file__).parent
 
 
+def resource_path(rel):
+    """Path to a bundled read-only asset (logo, icon). Frozen builds unpack
+    --add-data files into sys._MEIPASS; source runs read from the repo."""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / rel
+    return Path(__file__).parent / rel
+
+
 def grab_rgb(sct, monitor):
     """Screenshot one monitor as an HxWx3 RGB numpy array."""
     sct_img = sct.grab(monitor)
