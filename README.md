@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.png" alt="D.A.D's A.Ss — Dark and Darker Auto Screenshot" width="560"></p>
+
 # AutoKitScreenshot
 
 Automated gear-and-stats screenshot tool for *Dark and Darker*. With your
@@ -5,6 +7,13 @@ inventory open, press a hotkey and the tool hovers each gear slot, captures
 the tooltip that pops up, opens the details panel, scrolls through the full
 stats list, and stitches it all into a single PNG (also copied to your
 clipboard, ready to paste into Discord).
+
+**[⬇ Download the latest release](../../releases/latest)** — no install, no
+Python needed. Just run the exe.
+
+| One F8 press produces this | The app |
+|---|---|
+| <img src="docs/example_kit.png" width="520"> | <img src="docs/gui.png" width="340"> |
 
 ## For users (the exe)
 
@@ -22,13 +31,33 @@ If captures look misaligned (unusual aspect ratio, UI mods), click
 After changing resolution or moving the game window, click
 **Auto-Calibrate** — the status panel will warn you when this is needed.
 
-Windows SmartScreen may warn on first run (unsigned exe) — choose
-"More info → Run anyway". If F8 does nothing, try running as Administrator
-(global hotkeys sometimes need it).
-
 CLI flags for power users (run from source for console output):
 `--cli` (headless console listener), `--calibrate`, `--calibrate-stats`,
 `--auto-calibrate`, `--check`.
+
+## Antivirus warnings & safety
+
+Windows SmartScreen (and some antivirus tools) may warn about the exe.
+This is expected for small unsigned programs that register global hotkeys
+and move the mouse — those are exactly the tool's features, and they
+pattern-match what AV heuristics look for. If you're cautious (good!):
+
+- The complete source code is this repository — read it, then run from
+  source with `pip install -r requirements.txt` and `python autokit.py`,
+  or build the exe yourself with `build.bat`.
+- The tool makes **no network connections** of any kind. Your screenshots
+  stay on your machine (saved to `output\` and your clipboard, nothing else).
+- It only acts when you trigger it (F8 / the Capture button), and holding
+  ESC aborts a capture immediately.
+
+## Disclaimer
+
+This tool simulates mouse movement and clicks in the stash/lobby screens
+to read tooltips — it does not read or modify game memory, inject into the
+game process, or interact with gameplay. That said, automation of any kind
+is subject to Ironmace's Terms of Service, and you use this tool at your
+own risk. The authors accept no responsibility for account actions, lost
+items, or anything else. Not affiliated with Ironmace or Dark and Darker.
 
 Example output: a stats column on the left and a 4-wide grid of gear
 tooltips on the right (helmet, necklace, chest, cape, hands, legs, boots,
