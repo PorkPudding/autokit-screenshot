@@ -42,11 +42,12 @@ This is expected for small unsigned programs that register global hotkeys
 and move the mouse — those are exactly the tool's features, and they
 pattern-match what AV heuristics look for. If you're cautious (good!):
 
-- **Verify your download** — this build's SHA-256 is
+- **[VirusTotal scan of this build](https://www.virustotal.com/gui/file/10b6d6ef724a8497c49948aa8941f2ab195e216f28b8ffbccea048a0e6ed16e3)** —
+  confirm your download matches by checking its SHA-256:
   `10b6d6ef724a8497c49948aa8941f2ab195e216f28b8ffbccea048a0e6ed16e3`
-  (check yours in PowerShell with `Get-FileHash AutoKitScreenshot.exe`).
-  A [VirusTotal scan](https://www.virustotal.com/gui/file/10b6d6ef724a8497c49948aa8941f2ab195e216f28b8ffbccea048a0e6ed16e3/detection)
-  link for this build is published with each release.
+  (in PowerShell: `Get-FileHash AutoKitScreenshot.exe`). A couple of engines
+  may show heuristic flags — that's the expected false positive for an
+  unsigned PyInstaller app, not a real detection.
 - The complete source code is this repository — read it, then run from
   source with `pip install -r requirements.txt` and `python autokit.py`,
   or build the exe yourself with `build.bat`.
