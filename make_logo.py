@@ -1,5 +1,5 @@
 """
-Generate the D.A.D's A.Ss logo + exe icon in a Dark-and-Darker-ish style:
+Generate the DnD AKS logo + exe icon in a Dark-and-Darker-ish style:
 chiseled gold capitals, dark outline, weathered texture.
 
 Outputs:
@@ -115,10 +115,10 @@ def render_text(text, font_px, pad=None):
 
 
 def make_logo():
-    title = render_text("D.A.D's A.Ss", 110)
+    title = render_text("DnD AKS", 120)
 
     # tagline in lighter letterspaced caps
-    tag_text = "D A R K   A N D   D A R K E R   A U T O   S C R E E N S H O T"
+    tag_text = "D A R K   A N D   D A R K E R   A U T O   K I T   S C R E E N S H O T"
     tag_font = ImageFont.truetype(str(TAG_FONT), 17 * SS)
     probe = ImageDraw.Draw(Image.new("L", (8, 8)))
     tb = probe.textbbox((0, 0), tag_text, font=tag_font)
@@ -138,8 +138,8 @@ def make_logo():
 
 
 def make_icon():
-    line1 = render_text("D.A.D's", 96)
-    line2 = render_text("A.Ss", 96)
+    line1 = render_text("DnD", 104)
+    line2 = render_text("AKS", 104)
 
     side = max(line1.width, line2.width, line1.height + line2.height) + 24 * SS
     bg = Image.new("RGBA", (side, side), (16, 14, 20, 255))

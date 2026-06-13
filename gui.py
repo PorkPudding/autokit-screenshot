@@ -39,9 +39,10 @@ PREVIEW_MAX_H = 220
 class AutoKitGUI:
     def __init__(self):
         self.root = tk.Tk()
-        # NOTE: the title must NOT contain the game's name — find_game_window
-        # matches window titles, and we must never match ourselves.
-        self.root.title("D.A.D's A.Ss")
+        # NOTE: the title must NOT contain the game's name ("Dark and Darker")
+        # — find_game_window() matches window titles, so a title with the game
+        # name would make the tool match itself. Keep it as the acronym only.
+        self.root.title("DnD AKS")
         ico = resource_path("assets/icon.ico")
         if ico.exists():
             try:
@@ -79,9 +80,9 @@ class AutoKitGUI:
         if self._logo_photo is not None:
             tk.Label(self.root, image=self._logo_photo, bg=BG).pack(pady=(14, 2))
         else:
-            tk.Label(self.root, text="D.A.D's A.Ss",
+            tk.Label(self.root, text="DnD AKS",
                      font=("Segoe UI", 16, "bold"), fg=FG, bg=BG).pack(pady=(14, 2))
-            tk.Label(self.root, text="Dark and Darker Auto Screenshot",
+            tk.Label(self.root, text="Dark and Darker Auto Kit Screenshot",
                      font=("Segoe UI", 9), fg=FG_DIM, bg=BG).pack()
 
         # Status panel

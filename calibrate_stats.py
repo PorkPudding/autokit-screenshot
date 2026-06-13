@@ -51,7 +51,7 @@ def main():
     config = json.loads(CONFIG_PATH.read_text())
 
     overlay = CalibrationOverlay(
-        title="D&D Stats Calibration",
+        title="DnD AKS — Stats Calibration",
         intro="Open the inventory and click 'Open Details' first so the scroll bar is visible.",
         steps=STEPS,
     )

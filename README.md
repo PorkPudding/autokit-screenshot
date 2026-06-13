@@ -1,6 +1,6 @@
-<p align="center"><img src="assets/logo.png" alt="D.A.D's A.Ss — Dark and Darker Auto Screenshot" width="560"></p>
+<p align="center"><img src="assets/logo.png" alt="DnD AKS — Dark and Darker Auto Kit Screenshot" width="560"></p>
 
-# AutoKitScreenshot
+# DnD AKS — Dark and Darker Auto Kit Screenshot
 
 Automated gear-and-stats screenshot tool for *Dark and Darker*. With your
 inventory open, press a hotkey and the tool hovers each gear slot, captures
@@ -42,10 +42,11 @@ This is expected for small unsigned programs that register global hotkeys
 and move the mouse — those are exactly the tool's features, and they
 pattern-match what AV heuristics look for. If you're cautious (good!):
 
-- **[VirusTotal scan of the v1.0.0 exe](https://www.virustotal.com/gui/file/b7c421c92b1cf05f026a79dd57e789c46f88e75f80e3dbd00c38c873a851a27a/detection)** —
-  you can verify your download is the same file by checking its SHA-256:
-  `b7c421c92b1cf05f026a79dd57e789c46f88e75f80e3dbd00c38c873a851a27a`
-  (in PowerShell: `Get-FileHash AutoKitScreenshot.exe`)
+- **Verify your download** — this build's SHA-256 is
+  `10b6d6ef724a8497c49948aa8941f2ab195e216f28b8ffbccea048a0e6ed16e3`
+  (check yours in PowerShell with `Get-FileHash AutoKitScreenshot.exe`).
+  A [VirusTotal scan](https://www.virustotal.com/gui/file/10b6d6ef724a8497c49948aa8941f2ab195e216f28b8ffbccea048a0e6ed16e3/detection)
+  link for this build is published with each release.
 - The complete source code is this repository — read it, then run from
   source with `pip install -r requirements.txt` and `python autokit.py`,
   or build the exe yourself with `build.bat`.
@@ -169,8 +170,8 @@ pip install -r requirements.txt pyinstaller
 build.bat
 ```
 
-Produces `dist\AutoKitScreenshot.exe` (single file, console app). The exe
-keeps `slots.json` and `output\` next to itself. Detection geometry
+Produces `dist\AutoKitScreenshot.exe` (single file, windowed GUI app). The
+exe keeps `slots.json` and `output\` next to itself. Detection geometry
 (mask radii, blob sizes) auto-scales by `screen_height / 1440`, so the
 built-in profile plus scaling covers standard resolutions; the manual
 calibrator stays available as the escape hatch.

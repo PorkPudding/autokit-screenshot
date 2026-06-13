@@ -104,7 +104,7 @@ def run_calibration(parent=None, emit=print):
     Tk app instead of creating its own root."""
     steps = build_steps()
     overlay = CalibrationOverlay(
-        title="D&D Full Calibration",
+        title="DnD AKS — Full Calibration",
         intro="Open your inventory in-game with the Details panel CLOSED. "
               "Follow the prompts: hover each target and press SPACE.",
         steps=steps,
